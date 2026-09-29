@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useEffect } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { LogEntry as LogEntryType } from '../parsers/types'
 import LogEntry from './LogEntry'
@@ -11,6 +11,10 @@ interface Props {
   searchQuery: string
   filePath: string | null
   parserName: string
+  isStreaming: boolean
+  streamingContainerName: string | null
+  autoScroll: boolean
+  onToggleAutoScroll: () => void
 }
 
 export default function LogViewer({
@@ -20,7 +24,11 @@ export default function LogViewer({
   error,
   searchQuery,
   filePath,
-  parserName
+  parserName,
+  isStreaming,
+  streamingContainerName,
+  autoScroll,
+  onToggleAutoScroll
 }: Props): JSX.Element {
   const parentRef = useRef<HTMLDivElement>(null)
 
@@ -32,6 +40,12 @@ export default function LogViewer({
     getItemKey: (index) => entries[index]?.id ?? index
   })
 
+  useEffect(() => {
+    if (autoScroll && entries.length > 0) {
+      virtualizer.scrollToIndex(entries.length - 1, { align: 'end' })
+    }
+  }, [entries.length, autoScroll]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const renderContent = (): JSX.Element => {
     if (isLoading) {
       return <div className="state-overlay">Parsing log file&hellip;</div>
@@ -40,6 +54,14 @@ export default function LogViewer({
       return <div className="state-overlay state-error">{error}</div>
     }
     if (totalCount === 0) {
+      if (isStreaming) {
+        return (
+          <div className="empty-state">
+            <div className="empty-icon">&#128269;</div>
+            <div className="empty-title">Waiting for log lines&hellip;</div>
+          </div>
+        )
+      }
       return (
         <div className="empty-state">
           <div className="empty-icon">&#128196;</div>
@@ -96,8 +118,11 @@ export default function LogViewer({
       {renderContent()}
       <div className="statusbar">
         <span className="statusbar-file">
-          {filePath ?? (totalCount > 0 ? 'Pasted content' : 'No file loaded')}
+          {isStreaming && streamingContainerName
+            ? `Streaming: ${streamingContainerName}`
+            : filePath ?? (totalCount > 0 ? 'Pasted content' : 'No file loaded')}
         </span>
+        {isStreaming && <span className="statusbar-live">&#9679; LIVE</span>}
         {totalCount > 0 && (
           <span className="statusbar-counts">
             {entries.length < totalCount
@@ -105,6 +130,15 @@ export default function LogViewer({
               : `${totalCount.toLocaleString()} entries`}
             {parserName && <span className="statusbar-parser">&nbsp;&middot;&nbsp;{parserName}</span>}
           </span>
+        )}
+        {isStreaming && (
+          <button
+            className={`statusbar-autoscroll${autoScroll ? ' active' : ''}`}
+            onClick={onToggleAutoScroll}
+            title={autoScroll ? 'Auto-scroll on — click to disable' : 'Auto-scroll off — click to enable'}
+          >
+            {autoScroll ? '⬇ Auto' : '⬇ Manual'}
+          </button>
         )}
       </div>
     </div>

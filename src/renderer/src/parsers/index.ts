@@ -27,3 +27,38 @@ export function detectAndParse(content: string): { parser: string; entries: LogE
     }))
   return { parser: 'plain text', entries }
 }
+
+export function detectParser(lines: string[]): LogParser | null {
+  const sample = lines.join('\n')
+  return parsers.find((p) => p.canParse(sample)) ?? null
+}
+
+export function parseLines(
+  lines: string[],
+  parser: LogParser | null,
+  idOffset: number
+): LogEntry[] {
+  if (!lines.length) return []
+  if (parser) {
+    const raw = parser.parse(lines.join('\n'))
+    raw.forEach((e, i) => {
+      e.id = idOffset + i
+    })
+    return raw
+  }
+  return lines
+    .filter((l) => l.trim())
+    .map((line, i) => ({
+      id: idOffset + i,
+      timestamp: '',
+      date: '',
+      time: '',
+      thread: '',
+      level: 'UNKNOWN' as const,
+      logger: '',
+      context: '',
+      message: line,
+      stackTrace: '',
+      hasStackTrace: false
+    }))
+}

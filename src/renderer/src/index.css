@@ -527,3 +527,132 @@ mark.hl {
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: #3a3d45; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #4a4e58; }
+
+/* ── Docker streaming ──────────────────────────── */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.2; }
+}
+
+.docker-streaming-indicator {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-bright);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docker-pulse {
+  color: #22c55e;
+  font-size: 8px;
+  flex-shrink: 0;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.toolbar-btn-stop {
+  color: var(--error);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+.toolbar-btn-stop:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: var(--error);
+}
+
+.toolbar-btn-clear {
+  color: var(--text-dim);
+}
+.toolbar-btn-clear:hover {
+  color: var(--error);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+/* ── Status bar live indicator + auto-scroll ───── */
+.statusbar-live {
+  color: #22c55e;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.statusbar-autoscroll {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 10px;
+  height: 18px;
+  padding: 0 6px;
+  flex-shrink: 0;
+  transition: border-color 0.1s, color 0.1s;
+}
+.statusbar-autoscroll:hover { background: var(--bg-hover); }
+.statusbar-autoscroll.active {
+  color: var(--info);
+  border-color: var(--info);
+}
+
+/* ── Docker modal ──────────────────────────────── */
+.docker-modal-body {
+  min-height: 160px;
+  overflow-y: auto;
+}
+
+.docker-modal-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px 0;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.docker-modal-error { color: var(--error); }
+
+.docker-container-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 2px 0;
+}
+
+.docker-container-item {
+  padding: 8px 12px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+.docker-container-item:hover { background: var(--bg-hover); }
+.docker-container-item.selected {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: var(--info);
+}
+
+.docker-container-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-bright);
+}
+.docker-container-image {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  margin-top: 2px;
+}
+.docker-container-status {
+  font-size: 11px;
+  color: var(--debug);
+  margin-top: 1px;
+}

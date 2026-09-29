@@ -12,6 +12,12 @@ interface Props {
   searchQuery: string
   onSearchChange: (q: string) => void
   levelCounts: Record<string, number>
+  onOpenDocker: () => void
+  dockerStreaming: boolean
+  dockerContainerName: string | null
+  onStopDocker: () => void
+  onClear: () => void
+  hasLogs: boolean
 }
 
 export default function Toolbar({
@@ -23,7 +29,13 @@ export default function Toolbar({
   onToggleAll,
   searchQuery,
   onSearchChange,
-  levelCounts
+  levelCounts,
+  onOpenDocker,
+  dockerStreaming,
+  dockerContainerName,
+  onStopDocker,
+  onClear,
+  hasLogs
 }: Props): JSX.Element {
   const allActive = activeLevels.size === allLevels.length
 
@@ -37,6 +49,26 @@ export default function Toolbar({
       <button className="toolbar-btn" onClick={onPaste} title="Paste log content">
         <span>&#128203;</span> Paste
       </button>
+      {!dockerStreaming ? (
+        <button className="toolbar-btn" onClick={onOpenDocker} title="Stream Docker container logs">
+          <span>&#x1F433;</span> Docker
+        </button>
+      ) : (
+        <>
+          <span className="docker-streaming-indicator" title={dockerContainerName ?? ''}>
+            <span className="docker-pulse">&#9679;</span>
+            {dockerContainerName}
+          </span>
+          <button className="toolbar-btn toolbar-btn-stop" onClick={onStopDocker} title="Stop streaming">
+            &#9632; Stop
+          </button>
+        </>
+      )}
+      {hasLogs && (
+        <button className="toolbar-btn toolbar-btn-clear" onClick={onClear} title="Clear all logs">
+          &#10005; Clear
+        </button>
+      )}
       <div className="toolbar-divider" />
       <div className="level-filters">
         <button

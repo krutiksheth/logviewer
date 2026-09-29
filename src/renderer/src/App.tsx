@@ -1,10 +1,11 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { LogEntry, LogLevel } from './parsers/types'
-import { detectAndParse } from './parsers'
+import { LogEntry, LogLevel, LogParser } from './parsers/types'
+import { detectAndParse, detectParser, parseLines } from './parsers'
 import Toolbar from './components/Toolbar'
 import LogViewer from './components/LogViewer'
 import DropZone from './components/DropZone'
 import PasteModal from './components/PasteModal'
+import DockerModal from './components/DockerModal'
 
 const ALL_LEVELS: LogLevel[] = ['FATAL', 'ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE', 'UNKNOWN']
 
@@ -24,7 +25,17 @@ export default function App(): JSX.Element {
   const [searchQuery, setSearchQuery] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const [showPaste, setShowPaste] = useState(false)
+  const [dockerStreaming, setDockerStreaming] = useState(false)
+  const [dockerContainerName, setDockerContainerName] = useState<string | null>(null)
+  const [showDockerModal, setShowDockerModal] = useState(false)
+  const [autoScroll, setAutoScroll] = useState(true)
   const dragCounter = useRef(0)
+
+  // Streaming refs — survive re-renders without triggering them
+  const nextIdRef = useRef(0)
+  const detectedParserRef = useRef<LogParser | null>(null)
+  const parserDetectedRef = useRef(false)
+  const lineAccumulatorRef = useRef<string[]>([])
 
   const loadContent = useCallback((content: string, path: string | null) => {
     setIsLoading(true)
@@ -37,6 +48,7 @@ export default function App(): JSX.Element {
         setFilePath(path)
         setActiveLevels(new Set(ALL_LEVELS))
         setSearchQuery('')
+        nextIdRef.current = entries.length
       } catch (e) {
         setError(`Parse error: ${(e as Error).message}`)
         setAllEntries([])
@@ -81,6 +93,89 @@ export default function App(): JSX.Element {
     },
     [loadContent]
   )
+
+  const handleStartDocker = useCallback(async (containerId: string, containerName: string) => {
+    // Clean slate for streaming session
+    setAllEntries([])
+    setFilePath(null)
+    setParserName('')
+    setError(null)
+    setActiveLevels(new Set(ALL_LEVELS))
+    setSearchQuery('')
+    nextIdRef.current = 0
+    detectedParserRef.current = null
+    parserDetectedRef.current = false
+    lineAccumulatorRef.current = []
+
+    const result = await window.api.startDockerStream(containerId)
+    if (!result.success) {
+      setError(result.error ?? 'Failed to start Docker stream')
+      return
+    }
+
+    setDockerStreaming(true)
+    setDockerContainerName(containerName)
+    setShowDockerModal(false)
+
+    window.api.onDockerLogLine((line) => {
+      if (!parserDetectedRef.current) {
+        lineAccumulatorRef.current.push(line)
+        if (lineAccumulatorRef.current.length >= 20) {
+          const detected = detectParser(lineAccumulatorRef.current)
+          detectedParserRef.current = detected
+          parserDetectedRef.current = true
+          setParserName(detected?.name ?? 'plain text')
+          const batch = parseLines(lineAccumulatorRef.current, detected, 0)
+          nextIdRef.current = batch.length
+          lineAccumulatorRef.current = []
+          setAllEntries(batch)
+        }
+        return
+      }
+      const newEntries = parseLines([line], detectedParserRef.current, nextIdRef.current)
+      nextIdRef.current += newEntries.length
+      setAllEntries((prev) => [...prev, ...newEntries])
+    })
+
+    window.api.onDockerStreamEnd(() => {
+      setDockerStreaming(false)
+      setDockerContainerName(null)
+      // Flush any accumulated lines that never reached the 20-line threshold
+      if (!parserDetectedRef.current && lineAccumulatorRef.current.length > 0) {
+        const detected = detectParser(lineAccumulatorRef.current)
+        const batch = parseLines(lineAccumulatorRef.current, detected, 0)
+        setAllEntries(batch)
+        setParserName(detected?.name ?? 'plain text')
+        lineAccumulatorRef.current = []
+      }
+    })
+  }, [])
+
+  const handleStopDocker = useCallback(async () => {
+    await window.api.stopDockerStream()
+    window.api.removeDockerLogListeners()
+    setDockerStreaming(false)
+    setDockerContainerName(null)
+  }, [])
+
+  const handleClear = useCallback(() => {
+    setAllEntries([])
+    setFilePath(null)
+    setParserName('')
+    setError(null)
+    setSearchQuery('')
+    setActiveLevels(new Set(ALL_LEVELS))
+    nextIdRef.current = 0
+    detectedParserRef.current = null
+    parserDetectedRef.current = false
+    lineAccumulatorRef.current = []
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      window.api.removeDockerLogListeners()
+    }
+  }, [])
 
   useEffect(() => {
     const onDragEnter = (e: DragEvent) => {
@@ -164,6 +259,12 @@ export default function App(): JSX.Element {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         levelCounts={getLevelCounts(allEntries)}
+        onOpenDocker={() => setShowDockerModal(true)}
+        dockerStreaming={dockerStreaming}
+        dockerContainerName={dockerContainerName}
+        onStopDocker={handleStopDocker}
+        onClear={handleClear}
+        hasLogs={allEntries.length > 0}
       />
       <LogViewer
         entries={filteredEntries}
@@ -173,6 +274,10 @@ export default function App(): JSX.Element {
         searchQuery={searchQuery}
         filePath={filePath}
         parserName={parserName}
+        isStreaming={dockerStreaming}
+        streamingContainerName={dockerContainerName}
+        autoScroll={autoScroll}
+        onToggleAutoScroll={() => setAutoScroll((v) => !v)}
       />
       {isDragging && <DropZone />}
       {showPaste && (
@@ -182,6 +287,12 @@ export default function App(): JSX.Element {
             setShowPaste(false)
             loadContent(content, null)
           }}
+        />
+      )}
+      {showDockerModal && (
+        <DockerModal
+          onClose={() => setShowDockerModal(false)}
+          onStart={handleStartDocker}
         />
       )}
     </div>
